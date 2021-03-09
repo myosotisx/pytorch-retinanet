@@ -81,26 +81,27 @@ class Bottleneck(nn.Module):
 
 class BBoxTransform(nn.Module):
 
-    def __init__(self, mean=None, std=None):
+    def __init__(self, mean=None, std=None, use_gpu=True):
         super(BBoxTransform, self).__init__()
+        self.use_gpu = use_gpu
+        
         if mean is None:
-            if torch.cuda.is_available():
-                self.mean = torch.from_numpy(np.array([0, 0, 0, 0]).astype(np.float32)).cuda()
+            if self.use_gpu and torch.cuda.is_available():
+                self.mean = torch.Tensor([0, 0, 0, 0]).cuda()
             else:
-                self.mean = torch.from_numpy(np.array([0, 0, 0, 0]).astype(np.float32))
-
+                self.mean = torch.Tensor([0, 0, 0, 0])
         else:
             self.mean = mean
+
         if std is None:
-            if torch.cuda.is_available():
-                self.std = torch.from_numpy(np.array([0.1, 0.1, 0.2, 0.2]).astype(np.float32)).cuda()
+            if self.use_gpu and torch.cuda.is_available():
+                self.std = torch.Tensor([0.1, 0.1, 0.2, 0.2]).cuda()
             else:
-                self.std = torch.from_numpy(np.array([0.1, 0.1, 0.2, 0.2]).astype(np.float32))
+                self.std = torch.Tensor([0.1, 0.1, 0.2, 0.2])
         else:
             self.std = std
 
     def forward(self, boxes, deltas):
-
         widths  = boxes[:, :, 2] - boxes[:, :, 0]
         heights = boxes[:, :, 3] - boxes[:, :, 1]
         ctr_x   = boxes[:, :, 0] + 0.5 * widths
@@ -132,7 +133,6 @@ class ClipBoxes(nn.Module):
         super(ClipBoxes, self).__init__()
 
     def forward(self, boxes, img):
-
         batch_size, num_channels, height, width = img.shape
 
         boxes[:, :, 0] = torch.clamp(boxes[:, :, 0], min=0)

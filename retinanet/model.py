@@ -153,10 +153,13 @@ class ClassificationModel(nn.Module):
 
 
 class ResNet(nn.Module):
+    '''RetinaNet with ResNet backbone'''
 
-    def __init__(self, num_classes, block, layers):
+    def __init__(self, num_classes, block, layers, use_gpu=True):
         self.inplanes = 64
         super(ResNet, self).__init__()
+        self.use_gpu = use_gpu
+
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
@@ -180,13 +183,13 @@ class ResNet(nn.Module):
         self.regressionModel = RegressionModel(256)
         self.classificationModel = ClassificationModel(256, num_classes=num_classes)
 
-        self.anchors = Anchors()
+        self.anchors = Anchors(use_gpu=self.use_gpu)
 
-        self.regressBoxes = BBoxTransform()
+        self.regressBoxes = BBoxTransform(use_gpu=self.use_gpu)
 
         self.clipBoxes = ClipBoxes()
 
-        self.focalLoss = losses.FocalLoss()
+        self.focalLoss = losses.FocalLoss(use_gpu=self.use_gpu)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -229,7 +232,6 @@ class ResNet(nn.Module):
                 layer.eval()
 
     def forward(self, inputs):
-
         if self.training:
             img_batch, annotations = inputs
         else:
@@ -265,7 +267,7 @@ class ResNet(nn.Module):
             finalAnchorBoxesIndexes = torch.Tensor([]).long()
             finalAnchorBoxesCoordinates = torch.Tensor([])
 
-            if torch.cuda.is_available():
+            if self.use_gpu and torch.cuda.is_available():
                 finalScores = finalScores.cuda()
                 finalAnchorBoxesIndexes = finalAnchorBoxesIndexes.cuda()
                 finalAnchorBoxesCoordinates = finalAnchorBoxesCoordinates.cuda()
@@ -288,7 +290,8 @@ class ResNet(nn.Module):
 
                 finalScores = torch.cat((finalScores, scores[anchors_nms_idx]))
                 finalAnchorBoxesIndexesValue = torch.tensor([i] * anchors_nms_idx.shape[0])
-                if torch.cuda.is_available():
+
+                if self.use_gpu and torch.cuda.is_available():
                     finalAnchorBoxesIndexesValue = finalAnchorBoxesIndexesValue.cuda()
 
                 finalAnchorBoxesIndexes = torch.cat((finalAnchorBoxesIndexes, finalAnchorBoxesIndexesValue))

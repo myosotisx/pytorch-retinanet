@@ -3,7 +3,7 @@ import json
 import torch
 
 
-def evaluate_coco(dataset, model, threshold=0.05):
+def evaluate_coco(dataset, model, threshold=0.05, use_gpu=True):
     
     model.eval()
     
@@ -18,7 +18,7 @@ def evaluate_coco(dataset, model, threshold=0.05):
             scale = data['scale']
 
             # run network
-            if torch.cuda.is_available():
+            if use_gpu and torch.cuda.is_available():
                 scores, labels, boxes = model(data['img'].permute(2, 0, 1).cuda().float().unsqueeze(dim=0))
             else:
                 scores, labels, boxes = model(data['img'].permute(2, 0, 1).float().unsqueeze(dim=0))
@@ -81,4 +81,4 @@ def evaluate_coco(dataset, model, threshold=0.05):
 
         model.train()
 
-        return
+        return coco_eval.stats
