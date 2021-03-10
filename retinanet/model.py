@@ -299,6 +299,17 @@ class ResNet(nn.Module):
 
             return [finalScores, finalAnchorBoxesIndexes, finalAnchorBoxesCoordinates]
 
+    def switch_to_cpu(self):
+        self.use_gpu = False
+        self.anchors.switch_to_cpu()
+        self.focalLoss.use_gpu = False
+        self.regressBoxes.use_gpu = False
+
+    def switch_to_gpu(self):
+        self.use_gpu = True
+        self.anchors.switch_to_gpu()
+        self.focalLoss.use_gpu = True
+        self.regressBoxes.use_gpu = True
 
 
 def resnet18(num_classes, pretrained=False, **kwargs):

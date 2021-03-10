@@ -104,3 +104,7 @@ ENV/
 
 # model
 *.pth
+
+models/*
+logs/*
+test_images/*

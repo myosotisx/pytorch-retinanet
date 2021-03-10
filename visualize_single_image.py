@@ -1,3 +1,6 @@
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
+
 import torch
 import numpy as np
 import time
@@ -5,6 +8,7 @@ import os
 import csv
 import cv2
 import argparse
+import random
 
 
 def load_classes(csv_reader):
@@ -32,7 +36,7 @@ def draw_caption(image, box, caption):
     cv2.putText(image, caption, (b[0], b[1] - 10), cv2.FONT_HERSHEY_PLAIN, 1, (255, 255, 255), 1)
 
 
-def detect_image(image_path, model_path, class_list):
+def detect_image(image_path, model_path, class_list, samples):
 
     with open(class_list, 'r') as f:
         classes = load_classes(csv.reader(f, delimiter=','))
@@ -41,15 +45,30 @@ def detect_image(image_path, model_path, class_list):
     for key, value in classes.items():
         labels[value] = key
 
-    model = torch.load(model_path)
+    # load model on cpu
+    model = torch.load(model_path, map_location=lambda storage, loc: storage)
 
-    if torch.cuda.is_available():
+    use_gpu = False
+    
+    if use_gpu and torch.cuda.is_available():
         model = model.cuda()
+        model.switch_to_gpu()
+    else:
+        model.switch_to_cpu()
 
     model.training = False
     model.eval()
 
-    for img_name in os.listdir(image_path):
+    process_times = []
+
+    # random 100 images
+    dirlist = os.listdir(image_path)
+    if samples is not None and len(dirlist) > samples:
+        # dirlist = dirlist[:100]
+        dirlist = random.sample(dirlist, samples)
+    
+    for i, img_name in enumerate(dirlist):
+        st = time.time()
 
         image = cv2.imread(os.path.join(image_path, img_name))
         if image is None:
@@ -91,13 +110,11 @@ def detect_image(image_path, model_path, class_list):
         with torch.no_grad():
 
             image = torch.from_numpy(image)
-            if torch.cuda.is_available():
+
+            if use_gpu and torch.cuda.is_available():
                 image = image.cuda()
 
-            st = time.time()
-            print(image.shape, image_orig.shape, scale)
-            scores, classification, transformed_anchors = model(image.cuda().float())
-            print('Elapsed time: {}'.format(time.time() - st))
+            scores, classification, transformed_anchors = model(image.float())
             idxs = np.where(scores.cpu() > 0.5)
 
             for j in range(idxs[0].shape[0]):
@@ -108,15 +125,22 @@ def detect_image(image_path, model_path, class_list):
                 x2 = int(bbox[2] / scale)
                 y2 = int(bbox[3] / scale)
                 label_name = labels[int(classification[idxs[0][j]])]
-                print(bbox, classification.shape)
                 score = scores[j]
                 caption = '{} {:.3f}'.format(label_name, score)
                 # draw_caption(img, (x1, y1, x2, y2), label_name)
                 draw_caption(image_orig, (x1, y1, x2, y2), caption)
                 cv2.rectangle(image_orig, (x1, y1), (x2, y2), color=(0, 0, 255), thickness=2)
 
+            # print('Elapsed time: {}'.format(time.time() - st))
+            process_times.append(time.time()-st)
+
             cv2.imshow('detections', image_orig)
             cv2.waitKey(0)
+
+        
+        print('{}/{}'.format(i, len(dirlist)), end='\r')
+
+    print('Average FPS: {:.3f}'.format(len(dirlist)/np.sum(process_times)))
 
 
 if __name__ == '__main__':
@@ -126,7 +150,8 @@ if __name__ == '__main__':
     parser.add_argument('--image_dir', help='Path to directory containing images')
     parser.add_argument('--model_path', help='Path to model')
     parser.add_argument('--class_list', help='Path to CSV file listing class names (see README)')
+    parser.add_argument('--samples', help="Samples' count", type=int)
 
     parser = parser.parse_args()
 
-    detect_image(parser.image_dir, parser.model_path, parser.class_list)
+    detect_image(parser.image_dir, parser.model_path, parser.class_list, parser.samples)

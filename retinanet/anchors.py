@@ -44,6 +44,17 @@ class Anchors(nn.Module):
 
         return all_anchors
 
+    def switch_to_cpu(self):
+        self.use_gpu = False
+        self.scales = self.scales.cpu()
+        self.ratios = self.ratios.cpu()
+    
+    def switch_to_gpu(self):
+        self.use_gpu = True
+        self.scales = self.scales.cuda()
+        self.ratios = self.ratios.cuda()
+
+
 def generate_anchors(base_size, ratios, scales, use_gpu):
     num_anchors = len(ratios) * len(scales)
 
